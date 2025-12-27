@@ -1,58 +1,149 @@
 # MOTION - A Framework for Mixed-Protocol Multi-Party Computation [![Build Status](https://travis-ci.org/encryptogroup/MOTION.svg?branch=master)](https://travis-ci.org/encryptogroup/MOTION)
 
-Check out our [paper](https://ia.cr/2020/1137) (published at ACM TOPS'22) for details.
+Check out the [paper](https://ia.cr/2020/1137) (published at ACM TOPS'22) for details.
 
 This code is provided as an experimental implementation for testing purposes and should not be used in a productive environment. We cannot guarantee security and correctness.
 
-### Requirements
+
+## Docker Setup
+
+We run a container and mount the MOTION directory. If the image `mpc-frameworks` already exist we directly launch a container, else we build the image and then launch the container.
+
+```
+./setup_docker.sh
+```
+
+This script will use the modified `Dockerfile` to build the image with the required packages.
+
+## Setup & Build Instructions
+
+1. Inside the Docker container, navigate to the MOTION directory,
+    ```
+    cd /workspace/MOTION
+    ```
+
+2. Although the submodules are already updated, it is a good practice to check for updates on all the submodules 
+    ```
+    git submodule update --init --recursive
+    ```
+3. Create and enter the build directory:
+
+    ```bash
+    mkdir build && cd build
+    ```
+## Building MOTION
+
+By default, MOTION does **not** build executables or test cases. These components must be explicitly enabled using CMake options.
+
+##### Build Options
+
+- `MOTION_BUILD_EXE` — Build MOTION executables  
+- `MOTION_BUILD_TESTS` — Build MOTION test cases  
+- `MOTION_BUILD_EXAMPLES` — Build example applications  
+
+##### Basic Configuration
+
+To configure MOTION with executables and examples enabled:
+
+```bash
+cmake .. -DMOTION_BUILD_EXAMPLES=ON -DMOTION_BUILD_EXE=ON
+```
+
+##### Selecting the Build Type
+
+You can choose the build type, e.g. Release or Debug using [CMAKE_BUILD_TYPE](https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html):
+
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=<Release|Debug>
+```
+
+* **Release (default)**: Enables compiler optimizations for maximum performance.
+
+* **Debug**: Includes debug symbols and disables optimizations, useful for development and debugging.
+
+##### Choosing a Compiler
+To use a non-default C++ compiler, set the CXX environment variable before running CMake.
+For example, to build with clang++:
+
+```bash
+CXX=/usr/bin/clang++ cmake ..
+```
+
+###### Cleaning the Build Directory
+
+Executing `make clean` in the build directory removes all build artifacts.
+This includes built dependencies and examples.
+To clean only parts of the build, either invoke `make clean` in the specific
+subdirectory or use `make -C`:
+
+* `make clean` - clean everything
+* `make -C src/motioncore clean` - clean only the MOTION library
+* `make -C src/examples clean` - clean only the examples
+* `make -C src/test clean` - clean only the test application
+* `make -C extern clean` - clean only the built dependencies
+
+#### Developer Guide and Documentation
+
+This guide provides step-by-step instructions on how to integrate and build a **custom benchmarks executable** (`benchmarks`) into the [MOTION MPC framework](https://github.com/sartori-labs/MOTION.git), supporting the following operations:
+
+- **Sum**
+- **Count**
+- **ReLU**
+- **Billionaire**
+
+#### What Each Operation Does
+
+| Operation     | Description                                 |
+| ------------- | ------------------------------------------- |
+| `sum`         | Bitwise XOR sum over Boolean GMW shares     |
+| `count`       | Counts 1-bits via parity-based accumulation |
+| `relu`        | Computes `max(0,x)` using secure masking    |
+| `billionaire` | Secure bitwise comparison between parties   |
+
+1. Create New Benchmark Source File
+
+```bash
+mkdir -p src/examples/benchmarks
+```
+
+Add the program similar to this `src/examples/my_benchmark/benchmarks_main.cpp`
+
+2. Update `CMakeLists.txt`
+
+Add the following to `src/examples/CMakeLists.txt`
+
+```cmake
+add_executable(benchmarks benchmarks/benchmarks_main.cpp)
+target_link_libraries(benchmarks PRIVATE MOTION::motion)
+```
+
+## Build the Application/Benchmark
+```bash
+cmake --build . --target benchmarks -j `nproc`
+```
+---
+
+## Usage
+
+To run the application on the MOTION framework, we either use two different terminals, or run the first party in the background, and then run the second party
+
+```bash
+./bin/benchmark <praty_id> 0,<ip_assigned_party_0> 1,<ip_assigned_party_1> <sum|count|relu|billionaire> <vector_size> <iteration> &
+./bin/benchmark <praty_id> 0,<ip_assigned_party_0> 1,<ip_assigned_party_1> <sum|count|relu|billionaire> <vector_size> <iteration>
+```
+#### Example
+
+To run the `count` benchmark with an input size of `32` we use the following command.
+```bash
+./bin/benchmarks 0 0,127.0.0.1,23000 1,127.0.0.1,23001 count 32 1 & 
+./bin/benchmarks 1 0,127.0.0.1,23000 1,127.0.0.1,23001 count 32 1
+```
+
+**Note**: the IP adressess have to match on both the invocations, and must not be same for both the parties.
 
 ---
 
-* A **Linux distribution** of your choice (MOTION was developed and tested with recent versions of [Ubuntu](http://www.ubuntu.com/), [Manjaro](https://manjaro.org/) and [Arch Linux](https://www.archlinux.org/)).
-* **Required packages for MOTION:**
-  * `g++` (version >=10)
-    or another compiler and standard library implementing C++20 including the filesystem library
-  * `make`
-  * `cmake`
-  * [`boost`](https://www.boost.org/) (version >=1.75.0)
-  * `OpenMP`
-  * [`OpenSSL`](https://www.openssl.org/) (version >=1.1.0)
-* For Windows, set these paths in PATH System Variable:
-  * `path\to\cmake\bin`
-  * `path\to\MinGW\bin`
-  * OpenSSL can be configured by setting these variables: `OPENSSL_ROOT_DIR`, `OPENSSL_INCLUDE_DIR`
-    , `OPENSSL_LIBRARIES`, `OPENSSL_CRYPTO_LIBRARY`, and `OPENSSL_SSL_LIBRARY` or pass them via `-DOPENSSL_ROOT_DIR`
-    etc. in `cmake ..`
 
-
-#### Building MOTION
-
-##### Short Version
-
-1. Clone the MOTION git repository by running:
-    ```
-    git clone https://github.com/encryptogroup/MOTION.git
-    ```
-
-2. Enter the Framework directory: `cd MOTION/`
-
-3. Create and enter the build directory: `mkdir build && cd build`
-
-4. Use CMake configure the build:
-    ```
-    cmake ..
-    ```
-   For Windows:
-    ```
-    cmake -G "MinGW Makefiles" ..
-    ```
-    This also initializes and updates the Git submodules of the dependencies
-    located in `extern/`.
-
-5. Call `make` in the build directory.
-   Optionally, add `-j $number_of_parallel_jobs` to `make` for faster compilation.
-   You can find the build executables and libraries in the directories `bin/`
-   and `lib/`, respectively.
 
 ##### Detailed Guide
 
@@ -83,95 +174,7 @@ system for these libraries.
   If you want to do this without a network connection, consider to clone the
   repository recursively.
 
-###### Test Executables and Example Applications
 
-MOTION executables and test cases are not built by default.
-This can be enabled with the `MOTION_BUILD_EXE` or `MOTION_BUILD_TESTS` option, respectively, e.g.:
-```
-cmake .. -DMOTION_BUILD_EXE=On
-```
-
-###### Build Options
-
-You can choose the build type, e.g. `Release` or `Debug` using
-[`CMAKE_BUILD_TYPE`](https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html):
-```
-cmake .. -DCMAKE_BUILD_TYPE=Release
-# or
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-```
-`Release` is selected as default and will enable optimizations, whereas `Debug` includes debug symbols.
-
-To choose a different compiler, use the `CXX` environment variable:
-```
-CXX=/usr/bin/clang++ cmake ..
-```
-
-###### Cleaning the Build Directory
-
-Executing `make clean` in the build directory removes all build artifacts.
-This includes built dependencies and examples.
-To clean only parts of the build, either invoke `make clean` in the specific
-subdirectory or use `make -C`:
-
-* `make clean` - clean everything
-* `make -C src/motioncore clean` - clean only the MOTION library
-* `make -C src/examples clean` - clean only the examples
-* `make -C src/test clean` - clean only the test application
-* `make -C extern clean` - clean only the built dependencies
-
-
-###### Installation
-
-In case you plan to use MOTION for your own application, you might want to install
-the MOTION library to some place, for example system-wide (e.g. at `/usr/local`)
-or somewhere in your workspace (e.g. `/path/to/motion`).
-There are two relevant options:
-
-* [`CMAKE_INSTALL_PREFIX`](https://cmake.org/cmake/help/latest/variable/CMAKE_INSTALL_PREFIX.html)
-  defaults to `/usr/local` and is preprended by CMake to all installation paths
-  (e.g. `lib/` and `include/` for library and header files, respectively,
-  become `/usr/local/lib` and `usr/local/include`).
-  CMake will also look for dependencies at this location.
-* [`DESTDIR`](https://cmake.org/cmake/help/latest/envvar/DESTDIR.html)
-  is used by the Makefile to install to a nonstandard location.
-
-Example:
-If you want to install MOTION to `~/path/to/motion/prefix/{include,lib}` you can use:
-```
-cmake .. -DCMAKE_INSTALL_PREFIX=""
-make
-make DESTDIR=~/path/to/motion/prefix install
-```
-or
-```
-cmake .. -DCMAKE_INSTALL_PREFIX=~/path/to/motion/prefix
-make
-make install
-```
-
-##### Docker setup
-
-1. Create a Docker image. This may take a few minutes, but you will only have to do this once.
-    ```
-   docker build -t motion .
-    ```
-
-2. Run the Docker image.
-    ```
-   docker run -it --rm motion
-    ```
-To check correctness, run the test using `--gtest_filter='-*ipv6*'` because Docker doesn't support IPv6 by default.
-#### Developer Guide and Documentation
-**TODO (in work):** We provide an extensive developer guide with many examples and explanations of how to use MOTION.
-
-Also, for further information see comments on the code and the [online doxygen documentation for MOTION](https://motion-documentation.github.io). 
-Alternatively, it can be built locally in `your_build_folder/doc` by adding `-DMOTION_BUILD_DOC=On` to the `cmake` command.
-
-
-### MOTION Applications
-
----
 
 
 #### Running Applications
@@ -188,3 +191,20 @@ Three other examples with a detailed `README` can be found in `src/examples/tuto
   * Crosstabs
   * Inner Product
   * Multiply 3: multiply three real inputs from three parties or three shared inputs from two parties.
+
+## Troubleshooting
+
+- If `bind address () is no IP` error: ensure both parties are started within seconds.
+- If `core dumped`: check port conflicts or retry with a slight delay between terminals.
+- Enable logging with:
+
+```cpp
+party->GetConfiguration()->SetLoggingEnabled(true);
+```
+
+---
+
+## Credits
+
+Built using the MOTION MPC Framework by ENCRYPTO Group.  
+Modified for benchmarking by Akshat Ghoshal, Nishanth Murthy
